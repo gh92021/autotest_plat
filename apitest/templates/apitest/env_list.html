@@ -1,0 +1,117 @@
+{# apitest/templates/apitest/env_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>环境管理</h2>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:env_create' %}" class="btn">
+        + 新建环境
+    </a>
+    
+    <!-- 搜索表单 -->
+    <form method="get" action="" style="display: flex; gap: 10px; align-items: center;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="环境名称" 
+            value="{{ request.GET.name }}" 
+            style="padding: 10px 14px; width: 180px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <select 
+            name="module" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; min-width: 140px;"
+        >
+            <option value="">所有服务</option>
+            {% for m in modules %}
+            <option value="{{ m.id }}" {% if request.GET.module == m.id|stringformat:'s' %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+        </select>
+        <input 
+            type="text" 
+            name="url" 
+            placeholder="环境URL" 
+            value="{{ request.GET.url }}" 
+            style="padding: 10px 14px; width: 200px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <button type="submit" class="btn">搜索</button>
+        {% if request.GET.name or request.GET.module or request.GET.url %}
+        <a href="{% url 'apitest:env_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>环境名称</th>
+            <th>描述</th>
+            <th>服务</th>
+            <th>环境基础URL</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for env in envs %}
+        <tr>
+            <td>{{ env.id }}</td>
+            <td>{{ env.name }}</td>
+            <td class="truncate" title="{{ env.description }}">{{ env.description|default:"-" }}</td>
+            <td>{{ env.module.name }}</td>
+            <td class="truncate" title="{{ env.base_url }}">{{ env.base_url }}</td>
+            <td>{{ env.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:env_edit' env.id %}" class="btn">编辑</a>
+                <form method="post" action="{% url 'apitest:env_delete' env.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button 
+                        type="submit" 
+                        class="btn btn-danger" 
+                        onclick="return confirm('确定要删除这个环境吗？')"
+                    >
+                        删除
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">
+                暂无环境，请点击"新建环境"创建
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if envs.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if envs.has_previous %}
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ envs.previous_page_number }}" class="btn btn-secondary"><</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ envs.number }} 页 / 共 {{ envs.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in envs.paginator.page_range %}
+            {% if envs.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if envs.has_next %}
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ envs.next_page_number }}" class="btn btn-secondary">></a>
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ envs.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

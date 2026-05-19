@@ -1,0 +1,135 @@
+{# loadtest/templates/loadtest/report.html #}
+{% extends 'loadtest/base.html' %}
+
+{% block title %}测试报告 - {{ task.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .score-badge {
+        display: inline-block;
+        width: 100px;
+        height: 100px;
+        line-height: 100px;
+        text-align: center;
+        border-radius: 50%;
+        font-size: 32px;
+        font-weight: bold;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        margin: 0 auto;
+    }
+    
+    .suggestion-box {
+        background: #f0f9ff;
+        border-left: 4px solid #3b82f6;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 4px;
+    }
+    
+    .metric-box {
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #667eea;
+    }
+    
+    .metric-label {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>性能测试报告</h2>
+        <div>
+            <a href="{% url 'loadtest:report_download' record.id %}" class="btn btn-success">下载报告</a>
+            <a href="{% url 'loadtest:task_detail' task.id %}" class="btn btn-primary">返回详情</a>
+        </div>
+    </div>
+    
+    <div class="card-title">测试信息</div>
+    <table class="table">
+        <tr>
+            <th>测试名称</th>
+            <td>{{ task.name }}</td>
+            <th>测试时间</th>
+            <td>{{ record.created_at|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        <tr>
+            <th>目标URL</th>
+            <td colspan="3"><code>{{ task.script.target_url }}</code></td>
+        </tr>
+        <tr>
+            <th>并发用户</th>
+            <td>{{ task.users }}</td>
+            <th>运行时长</th>
+            <td>{{ task.run_time }}秒</td>
+        </tr>
+        <tr>
+            <th>压测模式</th>
+            <td>{{ task.get_mode_display }}</td>
+            <th>完成时间</th>
+            <td>{{ record.updated_at|date:"Y-m-d H:i:s"|default:"-" }}</td>
+        </tr>
+    </table>
+    
+    <div class="card-title">核心性能指标</div>
+    <div class="stats-grid">
+        <div class="metric-box">
+            <div class="metric-value">{{ record.total_requests|default:0 }}</div>
+            <div class="metric-label">总请求数</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-value">{{ record.fail_ratio|default:0 }}</div>
+            <div class="metric-label">失败率</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-value">{{ record.avg_response_time|floatformat:0 }}ms</div>
+            <div class="metric-label">平均响应时间</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-value">{{ record.rps|floatformat:1 }}</div>
+            <div class="metric-label">平均RPS</div>
+        </div>
+    </div>
+    
+    {% if report %}
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+        <h3>AI分析报告</h3>
+        
+        <div style="margin-bottom: 15px;">
+            <h4>测试总结</h4>
+            <p style="line-height: 1.6;">{{ report.summary }}</p>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <h4>性能问题</h4>
+            <p style="line-height: 1.6;">{{ report.issues }}</p>
+        </div>
+    </div>
+    
+    {% if report.suggestions %}
+    <div class="card-title">AI优化建议</div>
+    <div class="suggestion-box">
+        {{ report.suggestions|linebreaks }}
+    </div>
+    {% endif %}
+    
+    {% else %}
+    <div class="alert alert-info">
+        报告尚未生成，请稍后刷新查看。
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

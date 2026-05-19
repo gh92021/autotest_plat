@@ -1,0 +1,66 @@
+{# apitest/templates/apitest/result.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>执行结果</h2>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="stat-number">{{ execution.total_tests }}</div>
+        {% if execution.execution_type == 'case' %}
+        <div class="stat-label">步骤总数</div>
+        {% else %}
+        <div class="stat-label">用例总数</div>
+        {% endif %}
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color: #22c55e;">{{ execution.passed_tests }}</div>
+        <div class="stat-label">通过</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color: #ef4444;">{{ execution.failed_tests }}</div>
+        <div class="stat-label">失败</div>
+    </div>
+</div>
+
+<div style="margin-top: 24px;">
+    <table style="width: 100%; max-width: 600px;">
+        <tr>
+            <th style="width: 140px; padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; background: #f8fafc;">执行描述</th>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9;">{{ execution.name }}</td>
+        </tr>
+        <tr>
+            <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; background: #f8fafc;">执行类型</th>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9;">{{ execution.get_execution_type_display }}</td>
+        </tr>
+        <tr>
+            <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; background: #f8fafc;">状态</th>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9;">
+                <span class="status-{{ execution.status }}">{{ execution.get_status_display }}</span>
+            </td>
+        </tr>
+        <tr>
+            <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; background: #f8fafc;">执行时间</th>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9;">{{ execution.created_at|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        <tr>
+            <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; background: #f8fafc;">完成时间</th>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9;">{{ execution.completed_at|date:"Y-m-d H:i:s"|default:"-" }}</td>
+        </tr>
+        {% if execution.error_message %}
+        <tr>
+            <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; background: #f8fafc;">错误信息</th>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #ef4444; font-family: monospace; word-break: break-all;">{{ execution.error_message }}</td>
+        </tr>
+        {% endif %}
+    </table>
+</div>
+
+<div style="margin-top: 24px; display: flex; gap: 12px;">
+    {% if execution.report_file %}
+    <a href="{% url 'apitest:report_download' execution.id %}" class="btn btn-success">下载测试报告</a>
+    {% endif %}
+    <a href="{% url 'apitest:run_history' %}" class="btn">返回历史</a>
+</div>
+
+{% endblock %}

@@ -1,0 +1,653 @@
+{# apitest/templates/apitest/tc_detail.html #}
+{% extends 'apitest/base.html' %}
+
+{% block title %} {{ testcase.name }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <button id="run-all-btn" class="btn btn-success">运行用例</button>
+    <a href="{% url 'apitest:run_history' %}?type=case&target_id={{ testcase.id }}" class="btn" style="margin-left: 10px;">用例运行历史</a>
+</div>
+
+<div style="display: flex; gap: 24px; margin-top: 24px;">
+    <div class="form-group" style="flex: 1;">
+        <label>运行参数</label>
+        <textarea name="locals" rows="4" readonly>{{ locals.var_value|default:'' }}</textarea>
+    </div>
+    <div class="form-group" style="flex: 1;">
+        <label>参数化数据</label>
+        <textarea name="parametrize" rows="4" readonly>{{ parametrize.var_value|default:'' }}</textarea>
+    </div>
+</div>
+
+<div class="step-list">
+    {% for step in steps %}
+    <div class="step-item">
+        <div class="step-header">
+            <h4>
+                <span class="step-number">{{ forloop.counter }}</span>
+                {{ step.name }}
+                <span class="step-status"></span>
+            </h4>
+            {% if not parametrize.var_value %}
+            <button class="btn run-step-btn" data-step-id="{{ step.id }}">单步运行</button>
+            {% endif %}
+        </div>
+        <div class="step-content">
+            <div class="step-info">
+                <div class="info-row">
+                    <span class="info-label">接口:</span>
+                    <span>{{ step.api.name }}</span>
+                    <span class="method-badge">{{ step.api.method }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">URL:</span>
+                    <span>{{ step.api.url }}</span>
+                </div>
+                {% if step.replace_params %}
+                <div class="info-row">
+                    <span class="info-label">替换参数:</span>
+                    <span>{{ step.replace_params }}</span>
+                </div>
+                {% endif %}
+                {% if step.replace_body %}
+                <div class="info-row">
+                    <span class="info-label">替换请求体:</span>
+                    <span>{{ step.replace_body }}</span>
+                </div>
+                {% endif %}
+                {% if step.assertions %}
+                <div class="info-row">
+                    <span class="info-label">断言:</span>
+                    <span>{{ step.assertions }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="step-result">
+            <h5>运行结果</h5>
+            <div class="result-content"></div>
+        </div>
+    </div>
+    {% empty %}
+    <div style="text-align: center; padding: 40px; color: #94a3b8;">暂无测试步骤</div>
+    {% endfor %}
+</div>
+
+<div id="parametrized-results" style="display: none; margin-top: 30px;" 
+     data-has-parametrize="{% if parametrize.var_value %}true{% else %}false{% endif %}"
+     data-step-count="{{ steps|length|default:0 }}">
+    <h3 style="color: #334155; font-size: 16px; font-weight: 600; margin-bottom: 16px;">参数化运行结果</h3>
+    <div id="parametrized-results-content"></div>
+</div>
+
+<div class="form-group" style="margin-top: 24px;">
+    <label>tear down 脚本</label>
+    <textarea name="teardown_script" rows="4" readonly>{{ testcase.teardown_script|default:'' }}</textarea>
+</div>
+
+<div class="teardown-result">
+    <h5>teardown 脚本执行结果</h5>
+    <div class="teardown-result-content"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 单步运行
+        document.querySelectorAll('.run-step-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const stepId = this.dataset.stepId;
+                const stepItem = this.closest('.step-item');
+                const resultDiv = stepItem.querySelector('.step-result');
+                const resultContent = resultDiv.querySelector('.result-content');
+                const statusSpan = stepItem.querySelector('.step-status');
+                
+                resultDiv.style.display = 'block';
+                resultContent.innerHTML = '<p style="text-align: center; color: #64748b;">运行中...</p>';
+                statusSpan.textContent = '运行中';
+                statusSpan.className = 'step-status running';
+                
+                fetch(`/testcases/steps/${stepId}/run/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 更新步骤状态
+                        if (data.step_pass) {
+                            statusSpan.textContent = '通过';
+                            statusSpan.className = 'step-status passed';
+                        } else {
+                            statusSpan.textContent = '失败';
+                            statusSpan.className = 'step-status failed';
+                        }
+                        
+                        let html = `
+                            <div class="result-tabs">
+                                <div class="tab-buttons">
+                                    <button class="tab-btn active" data-tab="request">请求信息</button>
+                                    <button class="tab-btn" data-tab="response">响应信息</button>
+                                    <button class="tab-btn" data-tab="assert">断言结果</button>
+                                    <button class="tab-btn" data-tab="script">脚本执行结果</button>
+                                </div>
+                                <div class="tab-content">
+                                    <div class="tab-panel active" data-tab="request">
+                                        <pre>${data.request ? JSON.stringify(data.request, null, 2) : '无数据'}</pre>
+                                    </div>
+                                    <div class="tab-panel" data-tab="response">
+                                        <pre>${data.response ? '状态码: ' + data.response.status_code + '\n' + JSON.stringify(data.response.json || data.response.content, null, 2) : '无数据'}</pre>
+                                    </div>
+                                    <div class="tab-panel" data-tab="assert">
+                                        <pre>${data.asserted ? '通过' : '失败'}</pre>
+                                        <pre>断言结果:\n${data.assertions ? data.assertions.map(assertion => assertion.assertion + ': ' + (assertion.passed ? '通过' : '失败') + (assertion.error ? ': ' + assertion.error : '')).join('\n') : '无数据'}</pre>
+                                    </div>
+                                    <div class="tab-panel" data-tab="script">
+                                        <pre>${data.pre_result ? data.pre_result : ''}</pre>
+                                        <pre>${data.post_result ? data.post_result : ''}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        resultContent.innerHTML = html;
+                        initTabs(resultContent);
+                    } else {
+                        statusSpan.textContent = '失败';
+                        statusSpan.className = 'step-status failed';
+                        resultContent.innerHTML = '<p style="color: #ef4444;">运行失败: ' + data.error + '</p>';
+                    }
+                })
+                .catch(error => {
+                    statusSpan.textContent = '失败';
+                    statusSpan.className = 'step-status failed';
+                    resultContent.innerHTML = '<p style="color: #ef4444;">运行失败: ' + error.message + '</p>';
+                });
+            });
+        });
+        
+        // 运行用例
+        document.getElementById('run-all-btn').addEventListener('click', function() {
+            const testcaseId = '{{ testcase.id }}';
+            const stepItems = document.querySelectorAll('.step-item');
+            const hasParametrize = document.getElementById('parametrized-results').dataset.hasParametrize === 'true';
+    
+            
+            // 显示所有步骤的结果div并显示"运行中..."
+            stepItems.forEach((item, index) => {
+                const resultDiv = item.querySelector('.step-result');
+                const resultContent = resultDiv.querySelector('.result-content');
+                const statusSpan = item.querySelector('.step-status');
+                resultDiv.style.display = 'block';
+                resultContent.innerHTML = '<p style="text-align: center; color: #64748b;">运行中...</p>';
+                statusSpan.textContent = '运行中';
+                statusSpan.className = 'step-status running';
+            });
+            
+            document.getElementById('parametrized-results').style.display = 'none';
+    
+            fetch('/testcases/' + testcaseId + '/run/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 先隐藏所有步骤的结果div
+                    stepItems.forEach((item, index) => {
+                        const resultDiv = item.querySelector('.step-result');
+                        const statusSpan = item.querySelector('.step-status');
+                        resultDiv.style.display = 'none';
+                        statusSpan.textContent = '';
+                        statusSpan.className = 'step-status';
+                    });
+                    
+                    const teardownResultDiv = document.querySelector('.teardown-result');
+                    const teardownResultContent = teardownResultDiv.querySelector('.teardown-result-content');
+                    teardownResultDiv.style.display = 'none';
+    
+                    // 获取步骤结果（排除最后一项 teardown）
+                    const stepResults = data.results.slice(0, -1);
+                    const teardownResult = data.results[data.results.length - 1];
+                    
+            if (hasParametrize) {
+                // 参数化场景：集中展示全部结果
+                const paramResultsContainer = document.getElementById('parametrized-results');
+                const paramResultsContent = document.getElementById('parametrized-results-content');
+                const stepCount = parseInt(document.getElementById('parametrized-results').dataset.stepCount) || 1;  // 步骤数量
+                const groupCount = stepResults.length / stepCount;  // 参数化组数
+                
+                let html = `
+                    <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span style="font-weight: 600; color: #374151;">执行概览</span>
+                            <span>共 ${groupCount} 组参数，${stepResults.filter(r => r.step_pass).length} 个步骤通过</span>
+                        </div>
+                        <div style="display: grid; gap: 16px;">
+                `;
+                
+                // 按参数化组分组展示
+                for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
+                    const groupResults = stepResults.slice(groupIndex * stepCount, (groupIndex + 1) * stepCount);
+                    const isGroupPassed = groupResults.every(r => r.step_pass);
+                    
+                    html += `
+                        <div style="border: 1px solid ${isGroupPassed ? '#dcfce7' : '#fee2e2'}; border-radius: 8px; overflow: hidden;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: ${isGroupPassed ? '#f0fdf4' : '#fef2f2'};">
+                                <span style="font-weight: 600;">第 ${groupIndex + 1} 组参数</span>
+                                <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: ${isGroupPassed ? '#dcfce7' : '#fee2e2'}; color: ${isGroupPassed ? '#16a34a' : '#dc2626'};">
+                                    ${isGroupPassed ? '通过' : '失败'}
+                                </span>
+                                <button class="expand-btn" style="background: none; border: none; color: #64748b; cursor: pointer; font-size: 14px;">展开</button>
+                            </div>
+                            <div class="group-content" style="display: none; padding: 16px;">
+                    `;
+
+                    // 展示当前组的每个步骤结果
+                    groupResults.forEach((result, stepIndex) => {
+                        const stepPassed = result.step_pass;
+                        html += `
+                            <div style="margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <span style="font-weight: 500;">步骤 ${stepIndex + 1}: ${result.step_name || '未知步骤'}</span>
+                                    <span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; background: ${stepPassed ? '#dcfce7' : '#fee2e2'}; color: ${stepPassed ? '#16a34a' : '#dc2626'};">
+                                        ${stepPassed ? '通过' : '失败'}
+                                    </span>
+                                </div>
+                                <div class="result-tabs" style="font-size: 13px;">
+                                    <div class="tab-buttons">
+                                        <button class="tab-btn active" data-tab="req_${groupIndex}_${stepIndex}">请求</button>
+                                        <button class="tab-btn" data-tab="resp_${groupIndex}_${stepIndex}">响应</button>
+                                        <button class="tab-btn" data-tab="assert_${groupIndex}_${stepIndex}">断言</button>
+                                    </div>
+                                    <div class="tab-content">
+                                        <div class="tab-panel active" data-tab="req_${groupIndex}_${stepIndex}">
+                                            <pre style="max-height: 150px; overflow-y: auto;">${result.request ? JSON.stringify(result.request, null, 2) : '无数据'}</pre>
+                                        </div>
+                                        <div class="tab-panel" data-tab="resp_${groupIndex}_${stepIndex}">
+                                            <pre style="max-height: 150px; overflow-y: auto;">${result.response ? '状态码: ' + result.response.status_code + '\n' + JSON.stringify(result.response.json || result.response.content, null, 2) : '无数据'}</pre>
+                                        </div>
+                                        <div class="tab-panel" data-tab="assert_${groupIndex}_${stepIndex}">
+                                            <pre style="max-height: 150px; overflow-y: auto;">${result.assertions ? result.assertions.map(a => a.assertion + ': ' + (a.passed ? '通过' : '失败') + (a.error ? ': ' + a.error : '')).join('\n') : '无断言'}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                });
+                    html += `</div></div>`;
+                }
+                html += '</div></div>';
+                paramResultsContent.innerHTML = html;
+                paramResultsContainer.style.display = 'block';
+                
+                // 初始化tab和展开功能
+                initTabs(paramResultsContent);
+                
+                // 展开/折叠功能
+                paramResultsContent.querySelectorAll('.expand-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const content = this.parentElement.nextElementSibling;
+                        const isExpanded = content.style.display === 'block';
+                        content.style.display = isExpanded ? 'none' : 'block';
+                        this.textContent = isExpanded ? '展开' : '折叠';
+                    });
+                });
+                
+                // 默认展开第一个分组
+                const firstGroup = paramResultsContent.querySelector('.group-content');
+                const firstBtn = paramResultsContent.querySelector('.expand-btn');
+                if (firstGroup && firstBtn) {
+                    firstGroup.style.display = 'block';
+                    firstBtn.textContent = '折叠';
+                }
+            
+            } else {
+                    // 将结果展示在对应步骤的下方
+                    stepResults.forEach((result, index) => {
+                        if (stepItems[index]) {
+                            const resultDiv = stepItems[index].querySelector('.step-result');
+                            const resultContent = resultDiv.querySelector('.result-content');
+                            const statusSpan = stepItems[index].querySelector('.step-status');
+                            
+                            // 更新步骤状态
+                            if (result.step_pass) {
+                                statusSpan.textContent = '通过';
+                                statusSpan.className = 'step-status passed';
+                            } else {
+                                statusSpan.textContent = '失败';
+                                statusSpan.className = 'step-status failed';
+                            }
+                            
+                            let html = `
+                                <div class="result-tabs">
+                                    <div class="tab-buttons">
+                                        <button class="tab-btn active" data-tab="request">请求信息</button>
+                                        <button class="tab-btn" data-tab="response">响应信息</button>
+                                        <button class="tab-btn" data-tab="assert">断言结果</button>
+                                        <button class="tab-btn" data-tab="script">脚本执行结果</button>
+                                    </div>
+                                    <div class="tab-content">
+                                        <div class="tab-panel active" data-tab="request">
+                                            <pre>${result.request ? JSON.stringify(result.request, null, 2) : '无数据'}</pre>
+                                        </div>
+                                        <div class="tab-panel" data-tab="response">
+                                            <pre>${result.response ? '状态码: ' + result.response.status_code + '\n' + JSON.stringify(result.response.json || result.response.content, null, 2) : '无数据'}</pre>
+                                        </div>
+                                        <div class="tab-panel" data-tab="assert">
+                                            <pre>${result.asserted ? '通过' : '失败'}</pre>
+                                            <pre>断言结果:\n${result.assertions ? result.assertions.map(assertion => assertion.assertion + ': ' + (assertion.passed ? '通过' : '失败') + (assertion.error ? ': ' + assertion.error : '')).join('\n') : '无数据'}</pre>
+                                        </div>
+                                        <div class="tab-panel" data-tab="script">
+                                            <pre>${result.pre_result ? result.pre_result : ''}</pre>
+                                            <pre>${result.post_result ? result.post_result : ''}</pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            resultContent.innerHTML = html;
+                            resultDiv.style.display = 'block';
+                            initTabs(resultContent);
+                        }
+                    });
+                    teardownResultDiv.style.display = 'block';
+                    teardownResultContent.innerHTML = '<pre>' + (teardownResult ? JSON.stringify(teardownResult, null, 2) : '无数据') + '</pre>';
+                }
+                } else {
+                    // 如果运行失败，显示错误信息
+                    stepItems.forEach(item => {
+                        const resultDiv = item.querySelector('.step-result');
+                        const resultContent = resultDiv.querySelector('.result-content');
+                        const statusSpan = item.querySelector('.step-status');
+                        resultDiv.style.display = 'block';
+                        resultContent.innerHTML = '<p style="color: #ef4444;">运行失败: ' + data.error + '</p>';
+                        statusSpan.textContent = '失败';
+                        statusSpan.className = 'step-status failed';
+                    });
+                }
+            })
+            .catch(error => {
+                // 如果请求失败，显示错误信息
+                stepItems.forEach(item => {
+                    const resultDiv = item.querySelector('.step-result');
+                    const resultContent = resultDiv.querySelector('.result-content');
+                    const statusSpan = item.querySelector('.step-status');
+                    resultDiv.style.display = 'block';
+                    resultContent.innerHTML = '<p style="color: #ef4444;">运行失败: ' + error.message + '</p>';
+                    statusSpan.textContent = '失败';
+                    statusSpan.className = 'step-status failed';
+                });
+            });
+        });
+        
+        // 初始化tab功能
+        function initTabs(container) {
+            const tabButtons = container.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // 移除所有tab按钮的active类
+                    tabButtons.forEach(b => b.classList.remove('active'));
+                    // 添加当前按钮的active类
+                    this.classList.add('active');
+                    
+                    // 隐藏所有tab面板
+                    const tabPanels = container.querySelectorAll('.tab-panel');
+                    tabPanels.forEach(panel => panel.classList.remove('active'));
+                    
+                    // 显示当前tab对应的面板
+                    const tabId = this.dataset.tab;
+                    const activePanel = container.querySelector('.tab-panel[data-tab="' + tabId + '"]');
+                    activePanel.classList.add('active');
+                });
+            });
+        }
+    });
+</script>
+
+<style>
+/* 步骤卡片样式 */
+.step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.step-item {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+.step-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #cbd5e1;
+}
+
+.step-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.step-header h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.step-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+.step-status.running {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.step-status.passed {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.step-status.failed {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.step-content {
+    padding: 16px 20px;
+}
+
+.step-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.info-label {
+    color: #64748b;
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.info-row span:not(.info-label):not(.method-badge) {
+    color: #334155;
+    flex: 1;
+}
+
+.method-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.method-badge.get {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.method-badge.post {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.method-badge.put {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.method-badge.delete {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.method-badge.patch {
+    background: #e0e7ff;
+    color: #4f46e5;
+}
+
+.step-result {
+    display: none;
+    padding: 20px;
+    background: #fafafa;
+    border-top: 1px solid #e2e8f0;
+}
+
+.step-result h5 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+}
+
+/* 结果tab样式 */
+.result-tabs {
+    margin-top: 8px;
+}
+
+.tab-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+.tab-btn.active {
+    background: #3b82f6;
+    color: white;
+}
+
+.tab-content {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* teardown结果样式 */
+.teardown-result {
+    display: none;
+    margin-top: 20px;
+    padding: 20px;
+    background: #fafafa;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.teardown-result h5 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.teardown-result-content {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+}
+</style>
+{% endblock %}

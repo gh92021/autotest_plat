@@ -1,0 +1,123 @@
+{# loadtest/templates/loadtest/task_form.html #}
+{% extends 'loadtest/base.html' %}
+
+{% block title %}{% if task %}编辑{% else %}创建{% endif %}测试任务{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>{% if task %}编辑{% else %}创建{% endif %}测试任务</h2>
+    
+    <form method="post" id="testForm">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label>任务名称 *</label>
+            <input type="text" name="name" class="form-control" value="{{ task.name|default:'' }}" required>
+        </div>
+        
+    <div class="form-group">
+        <label>选择测试脚本</label>
+        <select name="script" required>
+            <option value="">请选择</option>
+            {% for script in scripts %}
+            <option value="{{ script.id }}" {% if script.id == task.script_id %}selected{% endif %}>{{ script.name }} - {{ script.target_url }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+        <div class="card-title">测试配置</div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label>并发用户数</label>
+                <input type="number" name="users" class="form-control" value="{{ task.users|default:10 }}" min="1" max="10000">
+            </div>
+            
+            <div class="form-group">
+                <label>启动速率 (用户/秒)</label>
+                <input type="number" name="spawn_rate" class="form-control" value="{{ task.spawn_rate|default:1 }}" min="1" max="1000">
+            </div>
+            
+            <div class="form-group">
+                <label>运行时间 (秒)</label>
+                <input type="number" name="run_time" class="form-control" value="{{ task.run_time|default:60 }}" min="10" max="3600">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>压测模式</label>
+            <select name="mode" class="form-control" id="modeSelect">
+                <option value="standalone" {% if task.mode == 'standalone' %}selected{% endif %}>单机模式</option>
+                <option value="distributed" {% if task.mode == 'distributed' %}selected{% endif %}>分布式模式</option>
+            </select>
+        </div>
+        
+        <!-- 分布式配置（默认隐藏） -->
+        <div id="distributedConfig" {% if task and task.mode == 'distributed' %}style="display: block;"{% else %}style="display: none;"{% endif %}>
+            <div class="card-title">分布式配置</div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>主节点地址</label>
+                    <input type="text" name="master_host" class="form-control" value="{{ task.master_host|default:'0.0.0.0' }}" placeholder="0.0.0.0">
+                </div>
+                
+                <div class="form-group">
+                    <label>主节点端口</label>
+                    <input type="number" name="master_port" class="form-control" value="{{ task.master_port|default:5557 }}">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>工作节点列表 (JSON格式)</label>
+                <textarea name="worker_nodes" class="form-control" rows="3" placeholder='["192.168.1.10", "192.168.1.11"]'>{{ task.worker_nodes|default:'[]' }}</textarea>
+                <small class="text-muted">示例: ["192.168.1.10:5557", "192.168.1.11:5557"]</small>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button type="submit" class="btn btn-primary">{% if task %}保存修改{% else %}创建任务{% endif %}</button>
+            <a href="{% url 'loadtest:task_list' %}" class="btn btn-warning">取消</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    // 模式切换
+    const modeSelect = document.getElementById('modeSelect');
+    const distributedConfig = document.getElementById('distributedConfig');
+    
+    modeSelect.addEventListener('change', function() {
+        if (this.value === 'distributed') {
+            distributedConfig.style.display = 'block';
+        } else {
+            distributedConfig.style.display = 'none';
+        }
+    });
+    
+    // 表单验证
+    document.getElementById('testForm').addEventListener('submit', function(e) {
+        const users = parseInt(document.querySelector('[name="users"]').value);
+        const runTime = parseInt(document.querySelector('[name="run_time"]').value);
+        
+        if (users > 10000) {
+            alert('并发用户数不能超过10000');
+            e.preventDefault();
+            return;
+        }
+        
+        if (runTime < 10) {
+            alert('运行时间至少10秒');
+            e.preventDefault();
+            return;
+        }
+        
+        if (runTime > 3600) {
+            if (!confirm('运行时间超过1小时，确定继续吗？')) {
+                e.preventDefault();
+                return;
+            }
+        }
+    });
+</script>
+{% endblock %}

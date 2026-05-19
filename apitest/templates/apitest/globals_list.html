@@ -1,0 +1,97 @@
+{# apitest/templates/apitest/globals_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>全局参数设置</h2>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:globals_create' %}" class="btn">
+        + 新建全局参数
+    </a>
+    
+    <!-- 搜索表单 -->
+    <form method="get" action="" style="display: flex; gap: 8px;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="搜索全局参数" 
+            value="{{ search_name }}" 
+            style="padding: 10px 14px; width: 220px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <button type="submit" class="btn">搜索</button>
+        {% if search_name %}
+        <a href="{% url 'apitest:globals_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>全局参数</th>
+            <th>描述</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for global in globals %}
+        <tr>
+            <td>{{ global.id }}</td>
+            <td>{{ global.name }}</td>
+            <td class="truncate" title="{{ global.description }}">{{ global.description|default:"-" }}</td>
+            <td>{{ global.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:globals_edit' global.id %}" class="btn">编辑</a>
+                <form method="post" action="{% url 'apitest:globals_delete' global.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button 
+                        type="submit" 
+                        class="btn btn-danger" 
+                        onclick="return confirm('确定要删除这个全局参数吗？')"
+                    >
+                        删除
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">
+                暂无全局参数，请点击"新建全局参数"创建
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if globals.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if globals.has_previous %}
+            <a href="?name={{ search_name|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ search_name|urlencode }}&page={{ globals.previous_page_number }}" class="btn btn-secondary"><</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ globals.number }} 页 / 共 {{ globals.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in globals.paginator.page_range %}
+            {% if globals.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?{% if request.GET.name %}name={{ request.GET.name }}&{% endif %}page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if globals.has_next %}
+            <a href="?name={{ search_name|urlencode }}&page={{ globals.next_page_number }}" class="btn btn-secondary">></a>
+            <a href="?name={{ search_name|urlencode }}&page={{ globals.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

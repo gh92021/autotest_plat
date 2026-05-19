@@ -1,0 +1,134 @@
+{# apitest/templates/apitest/run_history.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>执行历史</h2>
+
+<form method="get" action="{% url 'apitest:run_history' %}" class="search-form" style="margin-bottom: 20px;">
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <!-- 隐藏字段：保存当前选中的 type -->
+        <input type="hidden" name="type" value="{{ request.GET.type }}">
+        <input 
+            type="text" 
+            name="target_id" 
+            placeholder="按用例/计划ID搜索" 
+            value="{{ request.GET.target_id }}" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; min-width: 180px;"
+        >
+        <select 
+            name="status" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; min-width: 140px;"
+        >
+            <option value="">全部状态</option>
+            <option value="passed" {% if request.GET.status == 'passed' %}selected{% endif %}>通过</option>
+            <option value="failed" {% if request.GET.status == 'failed' %}selected{% endif %}>失败</option>
+            <option value="running" {% if request.GET.status == 'running' %}selected{% endif %}>运行中</option>
+            <option value="error" {% if request.GET.status == 'error' %}selected{% endif %}>错误</option>
+            <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>待执行</option>
+        </select>
+        <button type="submit" class="btn">搜索</button>
+        {% if request.GET.target_id or request.GET.status %}
+        <a href="{% url 'apitest:run_history' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </div>
+</form>
+
+<div class="tab-container" style="margin-bottom: 20px;">
+    <ul class="tabs" style="list-style: none; padding: 0; margin: 0; display: flex; border-bottom: 2px solid #e2e8f0;">
+        <li style="margin-right: 20px;">
+            <a href="?type=case{% if request.GET.target_id %}&target_id={{ request.GET.target_id }}{% endif %}" 
+               {% if request.GET.type == 'case' or not request.GET.type %}
+               style="display: block; padding: 10px 20px; text-decoration: none; color: #1e40af; border-bottom: 3px solid #1e40af; font-weight: 600; border-radius: 4px 4px 0 0; background: #eff6ff;"
+               {% else %}
+               style="display: block; padding: 10px 20px; text-decoration: none; color: #64748b; font-weight: 500; transition: color 0.2s;"
+               {% endif %}>
+                测试用例
+            </a>
+        </li>
+        <li>
+            <a href="?type=suite{% if request.GET.target_id %}&target_id={{ request.GET.target_id }}{% endif %}" 
+               {% if request.GET.type == 'suite' %}
+               style="display: block; padding: 10px 20px; text-decoration: none; color: #1e40af; border-bottom: 3px solid #1e40af; font-weight: 600; border-radius: 4px 4px 0 0; background: #eff6ff;"
+               {% else %}
+               style="display: block; padding: 10px 20px; text-decoration: none; color: #64748b; font-weight: 500; transition: color 0.2s;"
+               {% endif %}>
+                测试计划
+            </a>
+        </li>
+    </ul>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>执行描述</th>
+            <th>类型</th>
+            <th>状态</th>
+            <th>通过/总数</th>
+            <th>执行时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exec in executions %}
+        <tr>
+            <td>{{ exec.id }}</td>
+            <td class="truncate" title="{{ exec.name }}">{{ exec.name }}</td>
+            <td>{{ exec.get_execution_type_display }}</td>
+            <td>
+                <span class="status-{{ exec.status }}">{{ exec.get_status_display }}</span>
+            </td>
+            <td>
+                {% if exec.total_tests > 0 %}
+                <span style="color: #22c55e; font-weight: 600;">{{ exec.passed_tests }}</span> / 
+                <span style="color: #64748b;">{{ exec.total_tests }}</span>
+                {% else %}
+                <span style="color: #94a3b8;">-</span>
+                {% endif %}
+            </td>
+            <td>{{ exec.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:execute_result' exec.id %}" class="btn">查看详情</a>
+                {% if exec.report_file %}
+                <a href="{% url 'apitest:report_download' exec.id %}" class="btn btn-success">报告</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">暂无执行记录</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if executions.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if executions.has_previous %}
+            <a href="?type={{ request.GET.type|urlencode }}&target_id={{ request.GET.target_id|urlencode }}&status={{ request.GET.status|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?type={{ request.GET.type|urlencode }}&target_id={{ request.GET.target_id|urlencode }}&status={{ request.GET.status|urlencode }}&page={{ executions.previous_page_number }}" class="btn btn-secondary"><</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ executions.number }} 页 / 共 {{ executions.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in executions.paginator.page_range %}
+            {% if executions.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?type={{ request.GET.type|urlencode }}&target_id={{ request.GET.target_id|urlencode }}&status={{ request.GET.status|urlencode }}&page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if executions.has_next %}
+            <a href="?type={{ request.GET.type|urlencode }}&target_id={{ request.GET.target_id|urlencode }}&status={{ request.GET.status|urlencode }}&page={{ executions.next_page_number }}" class="btn btn-secondary">></a>
+            <a href="?type={{ request.GET.type|urlencode }}&target_id={{ request.GET.target_id|urlencode }}&status={{ request.GET.status|urlencode }}&page={{ executions.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

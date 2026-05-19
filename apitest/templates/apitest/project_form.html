@@ -1,0 +1,35 @@
+{# apitest/templates/apitest/project_form.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>{% if project %}编辑项目{% else %}新建项目{% endif %}</h2>
+
+<form method="post" style="max-width: 600px;">
+    {% csrf_token %}
+    
+    <div class="form-group">
+        <label>项目名称 <span style="color: #ef4444;">*</span></label>
+        <input 
+            type="text" 
+            name="name" 
+            value="{{ project.name|default:'' }}" 
+            required 
+            placeholder="例如：用户管理系统"
+        >
+    </div>
+    
+    <div class="form-group">
+        <label>项目描述</label>
+        <textarea 
+            name="description" 
+            rows="4" 
+            placeholder="请输入项目描述信息（可选）"
+        >{{ project.description|default:'' }}</textarea>
+    </div>
+    
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+        <button type="submit" class="btn">保存</button>
+        <a href="{% url 'apitest:project_list' %}" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}

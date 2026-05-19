@@ -1,0 +1,101 @@
+{# apitest/templates/apitest/suite_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>测试计划管理</h2>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:suite_create' %}" class="btn">+ 新建测试计划</a>
+
+    <!-- 搜索表单 -->
+    <form method="get" action="" style="display: flex; gap: 8px; align-items: center;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="搜索测试计划名称..." 
+            value="{{ request.GET.name }}" 
+            style="padding: 10px 14px; width: 200px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <select 
+            name="project" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; min-width: 150px;"
+        >
+            <option value="">所有项目</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if request.GET.project == p.id|stringformat:'s' %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn">搜索</button>
+        {% if request.GET.name or request.GET.project %}
+        <a href="{% url 'apitest:suite_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>测试计划名称</th>
+            <th>所属项目</th>
+            <th>用例数量</th>
+            <th>描述</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for suite in suites %}
+        <tr>
+            <td>{{ suite.id }}</td>
+            <td>{{ suite.name }}</td>
+            <td>{{ suite.project.name }}</td>
+            <td>{{ suite.testcases.count }}</td>
+            <td class="truncate" title="{{ suite.description }}">{{ suite.description|default:"-" }}</td>
+            <td>{{ suite.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:execute_suite' suite.id %}" class="btn btn-success">执行</a>
+                <a href="{% url 'apitest:suite_edit' suite.id %}" class="btn">编辑</a>
+                <form method="post" action="{% url 'apitest:suite_delete' suite.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('确定要删除吗？')">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">暂无测试计划</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if suites.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if suites.has_previous %}
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&page={{ suites.previous_page_number }}" class="btn btn-secondary">上一页</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ suites.number }} 页 / 共 {{ suites.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in suites.paginator.page_range %}
+            {% if suites.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if suites.has_next %}
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&page={{ suites.next_page_number }}" class="btn btn-secondary">下一页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&page={{ suites.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

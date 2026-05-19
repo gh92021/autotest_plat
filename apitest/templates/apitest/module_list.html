@@ -1,0 +1,99 @@
+{# apitest/templates/apitest/module_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>服务管理</h2>
+
+<!-- 搜索表单 -->
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:module_create' %}" class="btn">
+        + 新建服务
+    </a>
+    
+    <form method="get" action="{% url 'apitest:module_list' %}" style="display: flex; gap: 8px;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="搜索服务名称..." 
+            value="{{ request.GET.name }}" 
+            style="padding: 10px 14px; width: 220px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <button type="submit" class="btn">搜索</button>
+        {% if request.GET.name %}
+        <a href="{% url 'apitest:module_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>服务名称</th>
+            <th>描述</th>
+            <th>Git地址</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for module in modules %}
+        <tr>
+            <td>{{ module.id }}</td>
+            <td>{{ module.name }}</td>
+            <td class="truncate" title="{{ module.description }}">{{ module.description|default:"-" }}</td>
+            <td class="truncate" title="{{ module.git_url }}">{{ module.git_url|default:"-" }}</td>
+            <td>{{ module.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:module_edit' module.id %}" class="btn">编辑</a>
+                <form method="post" action="{% url 'apitest:module_delete' module.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button 
+                        type="submit" 
+                        class="btn btn-danger" 
+                        onclick="return confirm('确定要删除这个服务吗？删除后相关的接口和测试用例也会被删除！')"
+                    >
+                        删除
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">
+                暂无服务，请点击"新建服务"创建
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页控件 -->
+{% if modules.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if modules.has_previous %}
+            <a href="?name={{ request.GET.name|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&page={{ modules.previous_page_number }}" class="btn btn-secondary"><</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ modules.number }} 页 / 共 {{ modules.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in modules.paginator.page_range %}
+            {% if modules.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?{% if request.GET.name %}name={{ request.GET.name }}&{% endif %}page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if modules.has_next %}
+            <a href="?name={{ request.GET.name|urlencode }}&page={{ modules.next_page_number }}" class="btn btn-secondary">></a>
+            <a href="?name={{ request.GET.name|urlencode }}&page={{ modules.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

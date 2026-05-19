@@ -1,0 +1,142 @@
+{# apitest/templates/apitest/tc_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>测试用例管理</h2>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:testcase_create' %}" class="btn">+ 新建用例</a>
+    
+    <!-- 搜索表单 -->
+    <form method="get" action="" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="用例名称" 
+            value="{{ request.GET.name }}" 
+            style="padding: 10px 14px; width: 150px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <select 
+            name="project" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+            <option value="">所有项目</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if request.GET.project == p.id|stringformat:'s' %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        <select 
+            name="priority" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+            <option value="">优先级</option>
+            <option value="P0" {% if request.GET.priority == 'P0' %}selected{% endif %}>P0</option>
+            <option value="P1" {% if request.GET.priority == 'P1' %}selected{% endif %}>P1</option>
+            <option value="P2" {% if request.GET.priority == 'P2' %}selected{% endif %}>P2</option>
+            <option value="P3" {% if request.GET.priority == 'P3' %}selected{% endif %}>P3</option>
+        </select>
+        <select 
+            name="is_active" 
+            style="padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+            <option value="">启用状态</option>
+            <option value="1" {% if request.GET.is_active == "1" %}selected{% endif %}>启用</option>
+            <option value="0" {% if request.GET.is_active == "0" %}selected{% endif %}>禁用</option>
+        </select>
+        <button type="submit" class="btn">搜索</button>
+        {% if request.GET.name or request.GET.project or request.GET.priority or request.GET.is_active %}
+        <a href="{% url 'apitest:testcase_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>名称</th>
+            <th>优先级</th>
+            <th>项目</th>
+            <th>更新时间</th>
+            <th>状态</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tc in testcases %}
+        <tr>
+            <td>{{ tc.id }}</td>
+            <td class="truncate" title="{{ tc.name }}">{{ tc.name }}</td>
+            <td>
+                <span 
+                    style="padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;"
+                    {% if tc.priority == 'P0' %}style="background: #fee2e2; color: #991b1b;"{% endif %}
+                    {% if tc.priority == 'P1' %}style="background: #fef3c7; color: #92400e;"{% endif %}
+                    {% if tc.priority == 'P2' %}style="background: #dbeafe; color: #1e40af;"{% endif %}
+                    {% if tc.priority == 'P3' %}style="background: #f3f4f6; color: #6b7280;"{% endif %}
+                >
+                    {{ tc.priority }}
+                </span>
+            </td>
+            <td>{{ tc.project.name }}</td>
+            <td>{{ tc.updated_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <span 
+                    {% if tc.is_active %}class="status-passed"{% else %}class="status-failed"{% endif %}
+                >
+                    {% if tc.is_active %}启用{% else %}禁用{% endif %}
+                </span>
+            </td>
+            <td>
+                <a href="{% url 'apitest:testcase_detail' tc.id %}" class="btn btn-success">执行</a>
+                <a href="{% url 'apitest:testcase_edit' tc.id %}" class="btn">编辑</a>
+                <a href="{% url 'apitest:testcase_copy' tc.id %}" class="btn">复制</a>
+                <form method="post" action="{% url 'apitest:testcase_active' tc.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary">
+                        {% if tc.is_active %}禁用{% else %}启用{% endif %}
+                    </button>
+                </form>
+                <form method="post" action="{% url 'apitest:testcase_delete' tc.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('确定要删除吗？')">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">暂无数据</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if testcases.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if testcases.has_previous %}
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&priority={{ request.GET.priority|urlencode }}&is_active={{ request.GET.is_active|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&priority={{ request.GET.priority|urlencode }}&is_active={{ request.GET.is_active|urlencode }}&page={{ testcases.previous_page_number }}" class="btn btn-secondary">上一页</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ testcases.number }} 页 / 共 {{ testcases.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in testcases.paginator.page_range %}
+            {% if testcases.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&priority={{ request.GET.priority|urlencode }}&is_active={{ request.GET.is_active|urlencode }}&page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if testcases.has_next %}
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&priority={{ request.GET.priority|urlencode }}&is_active={{ request.GET.is_active|urlencode }}&page={{ testcases.next_page_number }}" class="btn btn-secondary">下一页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&project={{ request.GET.project|urlencode }}&priority={{ request.GET.priority|urlencode }}&is_active={{ request.GET.is_active|urlencode }}&page={{ testcases.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

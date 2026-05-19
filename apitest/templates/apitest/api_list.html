@@ -1,0 +1,107 @@
+{# apitest/templates/apitest/api_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>接口管理</h2>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:api_create' %}" class="btn">
+        + 新建接口
+    </a>
+
+    <!-- 搜索表单 -->
+    <form method="get" action="" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="接口名称" 
+            value="{{ request.GET.name }}" 
+            style="padding: 10px 14px; width: 160px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <select name="module" style="padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+            <option value="">所有服务</option>
+            {% for m in modules %}
+            <option value="{{ m.id }}" {% if request.GET.module == m.id|stringformat:'s' %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+        </select>
+        <input 
+            type="text" 
+            name="url" 
+            placeholder="URL" 
+            value="{{ request.GET.url }}" 
+            style="padding: 10px 14px; width: 160px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <button type="submit" class="btn">搜索</button>
+        {% if request.GET.name or request.GET.module or request.GET.url %}
+        <a href="{% url 'apitest:api_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>名称</th>
+            <th>服务</th>
+            <th>方法</th>
+            <th>URL</th>
+            <th>更新时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for api in apis %}
+        <tr>
+            <td>{{ api.id }}</td>
+            <td>{{ api.name }}</td>
+            <td>{{ api.module.name }}</td>
+            <td><span style="display: inline-block; padding: 4px 8px; background: #e0f2fe; color: #0c4a6e; border-radius: 4px; font-size: 12px; font-weight: 500;">{{ api.method }}</span></td>
+            <td class="truncate" title="{{ api.url }}">{{ api.url }}</td>
+            <td>{{ api.updated_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:api_edit' api.id %}" class="btn">编辑</a>
+                <a href="{% url 'apitest:api_detail' api.id %}" class="btn btn-success">调试</a>
+                <form method="post" action="{% url 'apitest:api_delete' api.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('确定要删除这个接口吗？')">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">暂无数据</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if apis.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if apis.has_previous %}
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ apis.previous_page_number }}" class="btn btn-secondary">上一页</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ apis.number }} 页 / 共 {{ apis.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in apis.paginator.page_range %}
+            {% if apis.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if apis.has_next %}
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ apis.next_page_number }}" class="btn btn-secondary">下一页</a>
+            <a href="?name={{ request.GET.name|urlencode }}&module={{ request.GET.module|urlencode }}&url={{ request.GET.url|urlencode }}&page={{ apis.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

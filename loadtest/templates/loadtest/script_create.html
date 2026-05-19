@@ -1,0 +1,154 @@
+{# loadtest/templates/loadtest/script_create.html #}
+{% extends 'loadtest/base.html' %}
+
+{% block content %}
+<h2>创建测试脚本</h2>
+
+<form method="post" id="scriptForm">
+    {% csrf_token %}
+    
+    <div class="form-group">
+        <label>脚本名称</label>
+        <input type="text" name="name" required>
+    </div>
+    
+    <div class="form-group">
+        <label>目标URL</label>
+        <input type="text" name="target_url" placeholder="示例：https://api.example.com" required>
+    </div>
+    
+    <div class="form-group">
+        <label>场景描述</label>
+        <textarea name="scenario" rows="3" placeholder="示例：
+测试场景：模拟1000个用户同时登录系统，每个用户执行登录、查看个人信息、修改资料、退出等操作。
+测试目标：验证系统在高并发下的稳定性和响应时间。
+业务要求：登录接口响应时间应在200ms以内，系统应能支撑1000并发用户。"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label>压测接口请求CURL</label>
+        <textarea name="api_curls" rows="5" placeholder="示例：
+[
+'''curl 'https://api.example.com' ''',
+'''curl 'https://api.example.com' '''
+]"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label>脚本内容</label>
+        <textarea name="script_content" rows="15" class="code-block" id="scriptContent"></textarea>
+        <button type="button" id="aiGenerateBtn" class="btn btn-info" style="margin-top: 10px;">
+            AI自动生成脚本
+        </button>
+        <div id="aiStatus" style="display: none; color: #3498db; margin-top: 5px;">
+            AI正在生成脚本，请稍候...
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label>AI生成测试数据</label>
+        <textarea name="testdata" rows="15" class="code-block" id="testData"></textarea>
+        <button type="button" id="aiGenerateDataBtn" class="btn btn-info" style="margin-top: 10px;">
+            AI自动生成数据
+        </button>
+        <div id="aiDataStatus" style="display: none; color: #3498db; margin-top: 5px;">
+            AI正在生成测试数据，请稍候...
+        </div>
+    </div>
+    
+    <button type="submit" class="btn">保存</button>
+    <a href="{% url 'loadtest:script_list' %}" class="btn btn-danger">取消</a>
+</form>
+
+<script>
+    const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+    const scriptContent = document.getElementById('scriptContent');
+    const scenarioTextarea = document.querySelector('textarea[name="scenario"]');
+    const apiCurlsTextarea = document.querySelector('textarea[name="api_curls"]');
+    const aiStatus = document.getElementById('aiStatus');
+    
+    aiGenerateBtn.addEventListener('click', async function() {
+        const scenario = scenarioTextarea.value.trim();
+        const apiCurls = apiCurlsTextarea.value.trim();
+        
+        if (!scenario && !apiCurls) {
+            alert('请至少填写场景描述或CURL请求');
+            return;
+        }
+        
+        aiStatus.style.display = 'block';
+        aiGenerateBtn.disabled = true;
+        scriptContent.value = 'AI生成中...';
+        
+        try {
+            const response = await fetch('{% url "loadtest:script_generate" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrfmiddlewaretoken"]').value,
+                },
+                body: JSON.stringify({
+                    scenario: scenario,
+                    api_curls: apiCurls
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                scriptContent.value = data.script_content;
+            } else {
+                scriptContent.value = '生成失败：' + data.message;
+            }
+        } catch (error) {
+            scriptContent.value = '请求失败：' + error.message;
+        } finally {
+            aiStatus.style.display = 'none';
+            aiGenerateBtn.disabled = false;
+        }
+    });
+    
+const aiGenerateDataBtn = document.getElementById('aiGenerateDataBtn');
+const testData = document.getElementById('testData');
+const aiDataStatus = document.getElementById('aiDataStatus');
+
+aiGenerateDataBtn.addEventListener('click', async function() {
+    const apiCurls = apiCurlsTextarea.value.trim();
+    
+    if (!apiCurls) {
+        alert('请填写压测接口请求CURL');
+        return;
+    }
+    
+    aiDataStatus.style.display = 'block';
+    aiGenerateDataBtn.disabled = true;
+    testData.value = 'AI生成中...';
+    
+    try {
+        const response = await fetch('{% url "loadtest:testdata_generate" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrfmiddlewaretoken"]').value,
+            },
+            body: JSON.stringify({
+                api_curls: apiCurls
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            testData.value = JSON.stringify(data.testdata, null, 2);
+        } else {
+            testData.value = '生成失败：' + data.message;
+        }
+    } catch (error) {
+        testData.value = '请求失败：' + error.message;
+    } finally {
+        aiDataStatus.style.display = 'none';
+        aiGenerateDataBtn.disabled = false;
+    }
+});
+</script>
+{% endblock %}

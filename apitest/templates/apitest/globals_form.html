@@ -1,0 +1,46 @@
+{# apitest/templates/apitest/globals_form.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>{% if globals %}编辑全局参数{% else %}新建全局参数{% endif %}</h2>
+
+<form method="post" style="max-width: 600px;">
+    {% csrf_token %}
+    
+    <div class="form-group">
+        <label>全局参数名称 <span style="color: #ef4444;">*</span></label>
+        <input 
+            type="text" 
+            name="name" 
+            value="{{ globals.name|default:'' }}" 
+            required 
+            placeholder="例如：base_url"
+        >
+    </div>
+    
+    <div class="form-group">
+        <label>参数值 <span style="color: #ef4444;">*</span></label>
+        <input 
+            type="text" 
+            name="value" 
+            value="{{ globals.value|default:'' }}" 
+            required 
+            placeholder="请输入参数值"
+        >
+    </div>
+    
+    <div class="form-group">
+        <label>全局参数描述</label>
+        <textarea 
+            name="description" 
+            rows="4" 
+            placeholder="请输入全局参数描述信息（可选）"
+        >{{ globals.description|default:'' }}</textarea>
+    </div>
+    
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+        <button type="submit" class="btn">保存</button>
+        <a href="{% url 'apitest:globals_list' %}" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}

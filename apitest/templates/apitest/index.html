@@ -1,0 +1,82 @@
+{# apitest/templates/apitest/index.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<div class="stats">
+    <div class="stat-card">
+        <div class="stat-number">{{ project_count }}</div>
+        <div class="stat-label">项目数量</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ testcase_count }}</div>
+        <div class="stat-label">测试用例</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ suite_count }}</div>
+        <div class="stat-label">测试计划</div>
+    </div>
+</div>
+
+<h3>最近执行的测试</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>类型</th>
+            <th>状态</th>
+            <th>通过/总数</th>
+            <th>执行时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exec in recent_executions %}
+        <tr>
+            <td class="truncate" title="{{ exec.name }}">{{ exec.name }}</td>
+            <td>{{ exec.get_execution_type_display }}</td>
+            <td>
+                <span class="status-{{ exec.status }}">{{ exec.get_status_display }}</span>
+            </td>
+            <td>{{ exec.passed_tests }}/{{ exec.total_tests }}</td>
+            <td>{{ exec.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:execute_result' exec.id %}" class="btn">查看</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" style="text-align: center; padding: 30px; color: #94a3b8;">暂无执行记录</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>最近更新的用例</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>项目</th>
+            <th>优先级</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tc in recent_testcases %}
+        <tr>
+            <td class="truncate" title="{{ tc.name }}">{{ tc.name }}</td>
+            <td>{{ tc.project.name }}</td>
+            <td>{{ tc.priority }}</td>
+            <td>
+                <a href="{% url 'apitest:testcase_detail' tc.id %}" class="btn btn-success">执行</a>
+                <a href="{% url 'apitest:testcase_edit' tc.id %}" class="btn">编辑</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4" style="text-align: center; padding: 30px; color: #94a3b8;">暂无测试用例</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,97 @@
+{# apitest/templates/apitest/project_list.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>项目管理</h2>
+
+<div style="margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+    <a href="{% url 'apitest:project_create' %}" class="btn">
+        + 新建项目
+    </a>
+    
+    <!-- 搜索表单 -->
+    <form method="get" action="" style="display: flex; gap: 8px;">
+        <input 
+            type="text" 
+            name="name" 
+            placeholder="搜索项目名称..." 
+            value="{{ search_name }}" 
+            style="padding: 10px 14px; width: 220px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;"
+        >
+        <button type="submit" class="btn">搜索</button>
+        {% if search_name %}
+        <a href="{% url 'apitest:project_list' %}" class="btn btn-secondary">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>项目名称</th>
+            <th>描述</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for project in projects %}
+        <tr>
+            <td>{{ project.id }}</td>
+            <td>{{ project.name }}</td>
+            <td class="truncate" title="{{ project.description }}">{{ project.description|default:"-" }}</td>
+            <td>{{ project.created_at|date:"Y-m-d H:i:s" }}</td>
+            <td>
+                <a href="{% url 'apitest:project_edit' project.id %}" class="btn">编辑</a>
+                <form method="post" action="{% url 'apitest:project_delete' project.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button 
+                        type="submit" 
+                        class="btn btn-danger" 
+                        onclick="return confirm('确定要删除这个项目吗？删除后相关的测试计划也会被删除！')"
+                    >
+                        删除
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">
+                暂无项目，请点击"新建项目"创建
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页导航 -->
+{% if projects.paginator.num_pages > 1 %}
+<div class="pagination">
+    <span class="step-links">
+        {% if projects.has_previous %}
+            <a href="?name={{ search_name|urlencode }}&page=1" class="btn btn-secondary">首页</a>
+            <a href="?name={{ search_name|urlencode }}&page={{ projects.previous_page_number }}" class="btn btn-secondary"><</a>
+        {% endif %}
+        
+        <span class="current">
+            第 {{ projects.number }} 页 / 共 {{ projects.paginator.num_pages }} 页
+        </span>
+        
+        {% for i in projects.paginator.page_range %}
+            {% if projects.number == i %}
+            <span class="btn active">{{ i }}</span>
+            {% else %}
+            <a href="?{% if request.GET.name %}name={{ request.GET.name }}&{% endif %}page={{ i }}" class="btn">{{ i }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if projects.has_next %}
+            <a href="?name={{ search_name|urlencode }}&page={{ projects.next_page_number }}" class="btn btn-secondary">></a>
+            <a href="?name={{ search_name|urlencode }}&page={{ projects.paginator.num_pages }}" class="btn btn-secondary">末页</a>
+        {% endif %}
+    </span>
+</div>
+{% endif %}
+{% endblock %}

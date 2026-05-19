@@ -1,0 +1,119 @@
+{# loadtest/templates/loadtest/task_detail.html #}
+{% extends 'loadtest/base.html' %}
+
+{% block title %}{{ task.name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>{{ task.name }}</h2>
+        <div>
+            {% if task.status == 'running' %}
+            <a href="{% url 'loadtest:task_stop' task.id %}" class="btn btn-danger" onclick="return confirm('确定停止测试？')">停止测试</a>
+            {% elif task.status != 'running' %}
+            <a href="{% url 'loadtest:task_start' task.id %}" class="btn btn-success" onclick="return confirm('确定启动测试？')">启动测试</a>
+            {% endif %}
+            <a href="{% url 'loadtest:task_edit' task.id %}" class="btn btn-warning">编辑</a>
+        </div>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ task.users }}</div>
+            <div class="stat-label">并发用户</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ task.spawn_rate }}</div>
+            <div class="stat-label">启动速率(用户/秒)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ task.run_time }}秒</div>
+            <div class="stat-label">运行时长</div>
+        </div>
+    </div>
+    
+    <div class="card-title">任务信息</div>
+    <table class="table" style="width: 100%;">
+        <tr>
+            <th style="width: 150px;">任务名称</th>
+            <td>{{ task.name }}</td>
+        </tr>
+        <tr>
+            <th>目标URL</th>
+            <td><code>{{ script.target_url }}</code></td>
+        </tr>
+        <tr>
+            <th>压测模式</th>
+            <td>{{ task.get_mode_display }}</td>
+        </tr>
+        <tr>
+            <th>状态</th>
+            <td><span class="status-badge status-{{ task.status }}">{{ task.get_status_display }}</span></td>
+        </tr>
+        <tr>
+            <th>创建时间</th>
+            <td>{{ task.created_at|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        {% if task.started_at %}
+        <tr>
+            <th>上一次开始时间</th>
+            <td>{{ task.started_at|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        {% endif %}
+        {% if task.completed_at %}
+        <tr>
+            <th>上一次完成时间</th>
+            <td>{{ task.completed_at|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    {% if script.scenario %}
+    <div class="card-title">测试场景描述</div>
+    <div class="card" style="background: #f8f9fa;">
+        <p>{{ script.scenario }}</p>
+    </div>
+    {% endif %}
+    
+    {% if script.script_content %}
+    <div class="card-title">Locust脚本</div>
+    <pre><code>{{ script.script_content }}</code></pre>
+    {% endif %}
+    
+    <div class="card-title">执行历史记录</div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>执行时间</th>
+                    <th>总请求数</th>
+                    <th>平均响应时间(ms)</th>
+                    <th>RPS</th>
+                    <th>失败率</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr {% if record.task_stamp == latest_stamp %}class="table-info"{% endif %}>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ record.created_at|date:"Y-m-d H:i:s" }}</td>
+                    <td>{{ record.total_requests }}</td>
+                    <td>{{ record.avg_response_time|floatformat:2 }}</td>
+                    <td>{{ record.rps|floatformat:2 }}</td>
+                    <td>{{ record.fail_ratio|floatformat:2 }}%</td>
+                    <td>
+                        <a href="{% url 'loadtest:task_record_detail' record.task_stamp %}" class="btn btn-sm btn-primary">详情</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center">暂无执行记录</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

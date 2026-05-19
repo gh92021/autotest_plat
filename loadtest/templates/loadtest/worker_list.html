@@ -1,0 +1,164 @@
+{# loadtest/templates/loadtest/worker_list.html #}
+{% extends 'loadtest/base.html' %}
+
+{% block title %}工作节点管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2>工作节点管理</h2>
+        <button onclick="refreshWorkers()" class="btn btn-primary">刷新</button>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ workers|length }}</div>
+            <div class="stat-label">总节点数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ workers|dictsortreversed:"status"|length }}</div>
+            <div class="stat-label">在线节点</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ workers|dictsort:"status"|length }}</div>
+            <div class="stat-label">离线节点</div>
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>节点名称</th>
+                    <th>地址</th>
+                    <th>端口</th>
+                    <th>状态</th>
+                    <th>当前测试</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for worker in workers %}
+                <tr>
+                    <td>{{ worker.name }}</td>
+                    <td>{{ worker.host }}</td>
+                    <td>{{ worker.port }}</td>
+                    <td>
+                        <span class="status-badge status-{{ worker.status }}">
+                            {% if worker.status == 'online' %}在线
+                            {% elif worker.status == 'busy' %}忙碌
+                            {% else %}离线{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ worker.current_test.name|default:"-" }}</td>
+                    <td>
+                        <button onclick="removeWorker('{{ worker.id }}')" class="btn btn-sm btn-danger">移除</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center">暂无工作节点</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="card-title">添加工作节点</div>
+    <form id="addWorkerForm" onsubmit="return addWorker(event)">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem;">
+            <input type="text" name="name" placeholder="节点名称" class="form-control" required>
+            <input type="text" name="host" placeholder="主机地址" class="form-control" required>
+            <input type="number" name="port" placeholder="端口" class="form-control" value="5557" required>
+            <button type="submit" class="btn btn-success">添加节点</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function refreshWorkers() {
+        location.reload();
+    }
+    
+    function addWorker(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        
+        fetch('{% url "loadtest:worker_register" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                name: formData.get('name'),
+                host: formData.get('host'),
+                port: parseInt(formData.get('port'))
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'registered') {
+                alert('节点添加成功');
+                location.reload();
+            } else {
+                alert('添加失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('添加失败: ' + error);
+        });
+        
+        return false;
+    }
+    
+    function removeWorker(workerId) {
+        if (confirm('确定移除该工作节点吗？')) {
+            fetch('{% url "loadtest:worker_remove" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    worker_id: workerId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'removed') {
+                    alert('节点移除成功');
+                    location.reload();
+                } else {
+                    alert('移除失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('移除失败: ' + error);
+            });
+            
+            return false;
+            
+            }
+    }
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // // 自动刷新工作节点状态
+    // setInterval(function() {
+    //     location.reload();
+    // }, 30000);
+</script>
+{% endblock %}

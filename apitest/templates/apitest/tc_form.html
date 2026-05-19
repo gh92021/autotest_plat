@@ -1,0 +1,599 @@
+{# apitest/templates/apitest/tc_form.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<style>
+    .flex-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .flex-row .form-control {
+        flex: 1;
+    }
+    
+    .flex-row .me-2 {
+        margin-right: 12px;
+    }
+    
+    .flex-end {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 16px;
+    }
+    
+    .step-row {
+        margin-bottom: 20px;
+        padding: 20px;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        background: #fafafa;
+        transition: all 0.2s ease;
+    }
+    
+    .step-row:hover {
+        background: #f5f5f5;
+        border-color: #d1d5db;
+    }
+    
+    .position-relative {
+        position: relative;
+    }
+    
+    .api-dropdown-menu {
+        display: none;
+        width: 520px;
+        max-height: 320px;
+        overflow-y: auto;
+        z-index: 9999;
+        position: absolute;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+    }
+    
+    .api-search-input {
+        width: calc(100% - 48px);
+        padding: 10px 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+    
+    .api-dropdown-menu table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    
+    .api-dropdown-menu th {
+        background: #f8fafc;
+        padding: 10px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #475569;
+        border-bottom: 1px solid #e2e8f0;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .api-dropdown-menu td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.15s ease;
+    }
+    
+    .api-dropdown-menu tr:hover td {
+        background: #f1f5f9;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+        font-family: monospace;
+        font-size: 13px;
+    }
+    .form-row {
+        display: flex;
+        gap: 20px;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+</style>
+
+<h2>{% if testcase %}编辑{% else %}新建{% endif %}测试用例</h2>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+        <label>用例名称 <span style="color: #ef4444;">*</span></label>
+        <input type="text" name="name" value="{{ testcase.name }}" required placeholder="请输入用例名称">
+    </div>
+    
+    <div class="form-group">
+        <label>优先级 <span style="color: #ef4444;">*</span></label>
+        <select name="priority" required>
+            <option value="">请选择</option>
+            <option value="P0" {% if testcase.priority == 'P0' %}selected{% endif %}>P0</option>
+            <option value="P1" {% if testcase.priority == 'P1' %}selected{% endif %}>P1</option>    
+            <option value="P2" {% if testcase.priority == 'P2' %}selected{% endif %}>P2</option>  
+            <option value="P3" {% if testcase.priority == 'P3' %}selected{% endif %}>P3</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label>所属项目 <span style="color: #ef4444;">*</span></label>
+        <select name="project" required>
+            <option value="">请选择</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if testcase.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+
+    <div class="form-row">
+        <div class="form-group">
+            <label>运行参数（本用例内有效）</label>
+            <textarea name="locals" rows="4" placeholder="JSON格式">{{ locals.var_value|default:'' }}</textarea>
+        </div>
+        
+        <div class="form-group">
+            <label>参数化数据（JSON格式）</label>
+            <textarea name="parametrize" rows="4" placeholder='{}'>{{ parametrize.var_value|default:'' }}</textarea>
+        </div>
+    </div>
+    
+    <!-- 步骤动态输入区域 -->
+    <div class="form-group">
+        <label>测试步骤</label>
+        <div id="steps-container">
+            {% if testcase %}
+                {% for step in steps %}
+                <div class="step-row">
+                    <div class="flex-row">
+                        <input type="text" name="name_{{ forloop.counter0 }}" value="{{ step.name|default:'' }}" placeholder="步骤名称" class="form-control me-2">
+                    </div>
+                    
+                    <!-- 接口和选择按钮 -->
+                    <div class="flex-row">
+                        <input type="text" name="api_{{ forloop.counter0 }}" value="{{ step.api.name }} ({{ step.api.url }})" placeholder="接口" class="form-control me-2" required readonly>
+                        <input type="hidden" name="api_id_{{ forloop.counter0 }}" value="{{ step.api.id }}">
+                        <div class="position-relative">
+                            <button type="button" class="btn" onclick="toggleApiDropdown(this)">选择接口</button>
+                            <!-- 下拉选择框 -->
+                            <div class="api-dropdown-menu">
+                                <div style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
+                                    <div class="flex-row">
+                                        <input type="text" class="api-search-input" placeholder="搜索接口名称或URL..." onkeyup="filterApisFromEvent(this.value, this)">
+                                        <button type="button" class="btn btn-secondary" onclick="closeApiDropdownFromButton(this)" style="padding: 8px 12px;">×</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>接口名称</th>
+                                                <th>URL</th>
+                                                <th>方法</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="api-table-body">
+                                            <!-- API列表将通过JavaScript加载 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="flex-row">
+                        <input type="text" name="replace_query_{{ forloop.counter0 }}" value="{{ step.replace_params|default:'' }}" placeholder="替换查询参数(JSON格式)" class="form-control me-2">
+                        <input type="text" name="replace_body_{{ forloop.counter0 }}" value="{{ step.replace_body|default:'' }}" placeholder="替换请求体(JSON格式)" class="form-control">
+                    </div>
+                    
+                    <div class="flex-row">
+                        <textarea name="pre_script_{{ forloop.counter0 }}" placeholder="前置脚本" class="form-control me-2" rows="3">{{ step.pre_script|default:'' }}</textarea>
+                        <textarea name="post_script_{{ forloop.counter0 }}" placeholder="后置脚本" class="form-control" rows="3">{{ step.post_script|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <textarea name="assertions_{{ forloop.counter0 }}" placeholder="断言" class="form-control" rows="3">{{ step.assertions|default:'' }}</textarea>
+                    </div>
+                    <small style="color: #64748b;">示例：<br>assert response.status_code == 200, '状态码错误'<br>assert response.json()['message'] == 'success'</small>
+                    
+                    <div class="flex-end">
+                        <button type="button" class="btn btn-danger" onclick="removeStepRow(this)">删除步骤</button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <!-- 默认添加一行 -->
+                <div class="step-row">
+                    <div class="flex-row">
+                        <input type="text" name="name_0" placeholder="步骤名称" class="form-control me-2">
+                    </div>
+                    
+                    <!-- 接口和选择按钮 -->
+                    <div class="flex-row">
+                        <input type="text" name="api_0" placeholder="接口" class="form-control me-2" required readonly>
+                        <input type="hidden" name="api_id_0" value="">
+                        <div class="position-relative">
+                            <button type="button" class="btn" onclick="toggleApiDropdown(this)">选择接口</button>
+                            <!-- 下拉选择框 -->
+                            <div class="api-dropdown-menu">
+                                <div style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
+                                    <div class="flex-row">
+                                        <input type="text" class="api-search-input" placeholder="搜索接口名称或URL..." onkeyup="filterApisFromEvent(this.value, this)">
+                                        <button type="button" class="btn btn-secondary" onclick="closeApiDropdownFromButton(this)" style="padding: 8px 12px;">×</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>接口名称</th>
+                                                <th>URL</th>
+                                                <th>方法</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="api-table-body">
+                                            <!-- API列表将通过JavaScript加载 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="flex-row">
+                        <input type="text" name="replace_query_0" placeholder="替换查询参数(JSON格式)" class="form-control me-2">
+                        <input type="text" name="replace_body_0" placeholder="替换请求体(JSON格式)" class="form-control">
+                    </div>
+                    
+                    <div class="flex-row">
+                        <textarea name="pre_script_0" placeholder="前置脚本" class="form-control me-2" rows="3"></textarea>
+                        <textarea name="post_script_0" placeholder="后置脚本" class="form-control" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <textarea name="assertions_0" placeholder="断言" class="form-control" rows="3"></textarea>
+                    </div>
+                    <small style="color: #64748b;">示例：<br>assert response.status_code == 200, '状态码错误'<br>assert response.json()['message'] == 'success'</small>
+                    
+                    <div class="flex-end">
+                        <button type="button" class="btn btn-danger" onclick="removeStepRow(this)">删除步骤</button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        <div style="margin-top: 16px;">
+            <button type="button" class="btn btn-success" onclick="addStepRow()">+ 添加步骤</button>
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label>tear down 脚本</label>
+        <textarea name="teardown_script" rows="4" placeholder="请输入teardown脚本（测试结束后执行）">{{ testcase.teardown_script|default:'' }}</textarea>
+    </div>
+    
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+        <button type="submit" class="btn">保存</button>
+        <a href="{% url 'apitest:testcase_list' %}" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 全局变量
+    let currentApiInput = null;
+    let allApis = [];
+    
+    // 页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', function() {
+        // 点击页面其他地方关闭下拉菜单
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.position-relative')) {
+                closeApiDropdown();
+            }
+        });
+    });
+    
+    // 添加步骤行
+    function addStepRow() {
+        const container = document.getElementById('steps-container');
+        const stepCount = container.querySelectorAll('.step-row').length;
+        const newRow = document.createElement('div');
+        newRow.className = 'step-row';
+        newRow.innerHTML = `
+            <div class="flex-row">
+                <input type="text" name="name_${stepCount}" placeholder="步骤名称" class="form-control me-2">
+            </div>
+            <!-- 接口和选择按钮 -->
+            <div class="flex-row">
+                <input type="text" name="api_${stepCount}" placeholder="接口" class="form-control me-2" required readonly>
+                <input type="hidden" name="api_id_${stepCount}" value="">
+                <div class="position-relative">
+                    <button type="button" class="btn" onclick="toggleApiDropdown(this)">选择接口</button>
+                    <!-- 下拉选择框 -->
+                    <div class="api-dropdown-menu">
+                        <div style="padding: 12px; border-bottom: 1px solid #e2e8f0;">
+                            <div class="flex-row">
+                                <input type="text" class="api-search-input" placeholder="搜索接口名称或URL..." onkeyup="filterApisFromEvent(this.value, this)">
+                                <button type="button" class="btn btn-secondary" onclick="closeApiDropdownFromButton(this)" style="padding: 8px 12px;">×</button>
+                            </div>
+                        </div>
+                        <div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>接口名称</th>
+                                        <th>URL</th>
+                                        <th>方法</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="api-table-body">
+                                    <!-- API列表将通过JavaScript加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex-row">
+                <input type="text" name="replace_query_${stepCount}" placeholder="替换查询参数(JSON格式)" class="form-control me-2">
+                <input type="text" name="replace_body_${stepCount}" placeholder="替换请求体(JSON格式)" class="form-control">
+            </div>
+            
+            <div class="flex-row">
+                <textarea name="pre_script_${stepCount}" placeholder="前置脚本" class="form-control me-2" rows="3"></textarea>
+                <textarea name="post_script_${stepCount}" placeholder="后置脚本" class="form-control" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 8px;">
+                <textarea name="assertions_${stepCount}" placeholder="断言" class="form-control" rows="3"></textarea>
+            </div>
+            <small style="color: #64748b;">示例：<br>assert response.status_code == 200, '状态码错误'<br>assert response.json()['message'] == 'success'</small>
+                    
+            <div class="flex-end">
+                <button type="button" class="btn btn-danger" onclick="removeStepRow(this)">删除步骤</button>
+            </div>
+        `;
+        container.appendChild(newRow);
+    }
+    
+    // 删除步骤行
+    function removeStepRow(button) {
+        const row = button.closest('.step-row');
+        if (document.querySelectorAll('.step-row').length > 1) {
+            row.remove();
+            // 重新编号剩余步骤的输入框名称
+            const stepRows = document.querySelectorAll('.step-row');
+            stepRows.forEach((row, index) => {
+                // 更新name输入框
+                const nameInput = row.querySelector('input[name^="name_"]');
+                if (nameInput) {
+                    nameInput.name = `name_${index}`;
+                }
+                // 更新API输入框
+                const apiInput = row.querySelector('input[name^="api_"]');
+                if (apiInput) {
+                    apiInput.name = `api_${index}`;
+                }
+                // 更新API ID隐藏输入框
+                const apiIdInput = row.querySelector('input[name^="api_id_"]');
+                if (apiIdInput) {
+                    apiIdInput.name = `api_id_${index}`;
+                }
+                // 更新replace_query输入框
+                const replaceQueryInput = row.querySelector('input[name^="replace_query_"]');
+                if (replaceQueryInput) {
+                    replaceQueryInput.name = `replace_query_${index}`;
+                }
+                // 更新replace_body输入框
+                const replaceBodyInput = row.querySelector('input[name^="replace_body_"]');
+                if (replaceBodyInput) {
+                    replaceBodyInput.name = `replace_body_${index}`;
+                }
+                // 更新pre_script输入框
+                const preScriptInput = row.querySelector('textarea[name^="pre_script_"]');
+                if (preScriptInput) {
+                    preScriptInput.name = `pre_script_${index}`;
+                }
+                // 更新post_script输入框
+                const postScriptInput = row.querySelector('textarea[name^="post_script_"]');
+                if (postScriptInput) {
+                    postScriptInput.name = `post_script_${index}`;
+                }
+                // 更新assertions输入框
+                const assertionsInput = row.querySelector('textarea[name^="assertions_"]');
+                if (assertionsInput) {
+                    assertionsInput.name = `assertions_${index}`;
+                }
+            });
+        } else {
+            alert('至少保留一行步骤配置');
+        }
+    }
+    
+    // 加载所有API数据
+    function loadAllApis(callback) {
+        // 从后端API加载数据
+        fetch('/apis/api-list/')
+            .then(response => response.json())
+            .then(data => {
+                allApis = data.apis.map(api => {
+                    return {
+                        id: api.id,
+                        name: api.name,
+                        url: api.url,
+                        method: api.method
+                    };
+                });
+                
+                // 如果有回调函数，则执行
+                if (callback && typeof callback === 'function') {
+                    callback(allApis);
+                }
+            })
+            .catch(error => {
+                console.error('加载API数据失败:', error);
+                allApis = [];
+                
+                if (callback && typeof callback === 'function') {
+                    callback(allApis);
+                }
+            });
+    }
+    
+    // 显示API列表
+    function displayApis(apis, tableBody = null) {
+        if (!tableBody) {
+            // 查找当前活动的dropdown
+            const activeDropdown = document.querySelector('.api-dropdown-menu[style*="display: block"]');
+            if (activeDropdown) {
+                tableBody = activeDropdown.querySelector('.api-table-body');
+            }
+        }
+        
+        if (tableBody) {
+            tableBody.innerHTML = '';
+            
+            if (apis.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #94a3b8;">没有找到匹配的接口</td></tr>';
+                return;
+            }
+            
+            apis.forEach(api => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td title="${api.name}">${api.name.length > 20 ? api.name.substring(0, 20) + '...' : api.name}</td>
+                    <td title="${api.url}">${api.url.length > 30 ? api.url.substring(0, 30) + '...' : api.url}</td>
+                    <td>${api.method}</td>
+                    <td>
+                        <button type="button" class="btn" onclick="selectApi(${api.id}, '${api.name.replace(/'/g, "\\'")}', '${api.url.replace(/'/g, "\\'")}', this)">选择</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+    }
+    
+    // 过滤API
+    function filterApisFromEvent(searchTerm, element) {
+        const dropdownMenu = element.closest('.api-dropdown-menu');
+        const tableBody = dropdownMenu.querySelector('.api-table-body');
+        
+        if (!searchTerm.trim()) {
+            displayApis(allApis, tableBody);
+            return;
+        }
+        
+        const filteredApis = allApis.filter(api => 
+            api.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            api.url.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        
+        displayApis(filteredApis, tableBody);
+    }
+    
+    // 切换API下拉菜单
+    function toggleApiDropdown(button) {
+        // 关闭其他已打开的下拉菜单
+        document.querySelectorAll('.api-dropdown-menu').forEach(menu => {
+            if (menu.style.display === 'block' && menu !== button.nextElementSibling) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        const dropdownMenu = button.nextElementSibling;
+        const buttonRect = button.getBoundingClientRect();
+        const containerRect = button.closest('.position-relative').getBoundingClientRect();
+
+        // 设置下拉菜单的位置在按钮下方，相对于父容器定位
+        dropdownMenu.style.position = 'absolute';
+        dropdownMenu.style.top = '100%'; // 按钮下方
+        dropdownMenu.style.left = '0';
+        dropdownMenu.style.width = '520px'; // 固定宽度
+        dropdownMenu.style.marginTop = '4px'; // 4px间隙
+
+        if (dropdownMenu.style.display === 'block') {
+            dropdownMenu.style.display = 'none';
+        } else {
+            dropdownMenu.style.display = 'block';
+            // 记录当前API输入框的引用
+            currentApiInput = button.closest('.position-relative').previousElementSibling.previousElementSibling;
+            // 重置搜索框
+            const searchInput = dropdownMenu.querySelector('.api-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            
+            // 如果还没有加载API数据，则加载
+            if (allApis.length === 0) {
+                loadAllApis(function(loadedApis) {
+                    // 显示所有API
+                    displayApis(loadedApis, dropdownMenu.querySelector('.api-table-body'));
+                });
+            } else {
+                // 显示已有的API
+                displayApis(allApis, dropdownMenu.querySelector('.api-table-body'));
+            }
+        }
+    }
+    
+    // 关闭API下拉菜单
+    function closeApiDropdown() {
+        const dropdownMenu = document.querySelector('.api-dropdown-menu[style*="display: block"]');
+        if (dropdownMenu) {
+            dropdownMenu.style.display = 'none';
+        }
+    }
+    
+    // 从按钮关闭API下拉菜单
+    function closeApiDropdownFromButton(button) {
+        const dropdownMenu = button.closest('.api-dropdown-menu');
+        dropdownMenu.style.display = 'none';
+    }
+    
+    // 选择API
+    function selectApi(apiId, apiName, apiUrl, button) {
+        // 找到对应的API输入框（在当前dropdown的父容器中）
+        const dropdownContainer = button.closest('.api-dropdown-menu').parentElement;
+        const apiInput = dropdownContainer.previousElementSibling.previousElementSibling;
+        const apiIdInput = dropdownContainer.previousElementSibling;
+        
+        // 将选中的接口信息填入API输入框
+        if (apiInput) {
+            apiInput.value = `${apiName} (${apiUrl})`;
+            // 存储API ID用于后续处理
+            apiInput.dataset.apiId = apiId;
+        }
+        
+        // 将API ID填入隐藏输入框
+        if (apiIdInput) {
+            apiIdInput.value = apiId;
+        }
+        
+        // 关闭下拉菜单
+        const dropdownMenu = button.closest('.api-dropdown-menu');
+        dropdownMenu.style.display = 'none';
+        
+        // 重置当前API输入框引用
+        currentApiInput = null;
+    }
+</script>
+{% endblock %}

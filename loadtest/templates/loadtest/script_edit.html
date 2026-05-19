@@ -1,0 +1,43 @@
+{# loadtest/templates/loadtest/script_edit.html #}
+{% extends 'loadtest/base.html' %}
+
+{% block content %}
+<h2>编辑测试脚本</h2>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <div class="form-group">
+        <label>脚本名称</label>
+        <input type="text" name="name" value="{{ script.name }}" required>
+    </div>
+    
+    <div class="form-group">
+        <label>目标URL</label>
+        <input type="text" name="target_url" value="{{ script.target_url }}" required>
+    </div>
+    
+    <div class="form-group">
+        <label>场景描述</label>
+        <textarea name="scenario" rows="3">{{ script.scenario }}</textarea>
+    </div>
+    
+    <div class="form-group">
+        <label>测试接口请求CURL</label>
+        <textarea name="api_curls" rows="5" required>{{ script.api_curls }}</textarea>
+    </div>
+    
+    <div class="form-group">
+        <label>Locust脚本内容</label>
+        <textarea name="script_content" rows="20" class="code-block" style="font-family: monospace; font-size: 12px;">{{ script.script_content }}</textarea>
+    </div>
+    
+    <div class="form-group">
+        <label>AI生成测试数据</label>
+        <textarea name="testdata" rows="20" class="code-block" style="font-family: monospace; font-size: 12px;">{{ script.testdata }}</textarea>
+    </div>
+    
+    <button type="submit" class="btn">保存</button>
+    <a href="{% url 'loadtest:script_list' %}" class="btn btn-danger">取消</a>
+</form>
+{% endblock %}

@@ -1,0 +1,487 @@
+{# apitest/templates/apitest/suite_form.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<style>
+    /* 模态框样式 */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+    }
+    
+    .modal-content {
+        background-color: #ffffff;
+        margin: 8% auto;
+        padding: 24px;
+        border: none;
+        width: 90%;
+        max-width: 800px;
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        animation: modalFadeIn 0.2s ease;
+    }
+    
+    @keyframes modalFadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .close {
+        color: #64748b;
+        float: right;
+        font-size: 24px;
+        font-weight: 500;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+    
+    .close:hover,
+    .close:focus {
+        color: #1e293b;
+        background: #f1f5f9;
+        text-decoration: none;
+    }
+    
+    /* 选中用例列表样式 */
+    .selected-testcases {
+        border: 2px dashed #e2e8f0;
+        padding: 16px;
+        min-height: 120px;
+        margin-bottom: 16px;
+        border-radius: 10px;
+        background: #fafafa;
+        transition: all 0.2s ease;
+    }
+    
+    .selected-testcases:hover {
+        border-color: #cbd5e1;
+        background: #f8fafc;
+    }
+    
+    .selected-testcase-item {
+        display: inline-flex;
+        align-items: center;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        padding: 8px 14px;
+        margin: 6px;
+        border-radius: 20px;
+        font-size: 14px;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .selected-testcase-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+    }
+    
+    .selected-testcase-item .remove-btn {
+        margin-left: 8px;
+        cursor: pointer;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 16px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+    }
+    
+    .selected-testcase-item .remove-btn:hover {
+        color: white;
+        background: rgba(255, 255, 255, 0.2);
+    }
+    
+    /* 搜索框样式 */
+    .search-container {
+        margin-bottom: 20px;
+    }
+    
+    .search-container input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        background: #f8fafc;
+    }
+    
+    .search-container input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        background: white;
+    }
+    
+    .search-container input::placeholder {
+        color: #94a3b8;
+    }
+    
+    /* 测试用例列表样式 */
+    .testcase-list {
+        max-height: 320px;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: white;
+    }
+    
+    .testcase-list::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .testcase-list::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+    
+    .testcase-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+    
+    .testcase-list::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+    
+    .testcase-item {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .testcase-item:last-child {
+        border-bottom: none;
+    }
+    
+    .testcase-item:hover {
+        background: #f8fafc;
+    }
+    
+    .testcase-item.selected {
+        background: #eff6ff;
+    }
+    
+    .testcase-item .checkbox-container {
+        margin-right: 14px;
+    }
+    
+    .testcase-item .checkbox-container input {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #3b82f6;
+    }
+    
+    .testcase-item .testcase-info {
+        flex: 1;
+    }
+    
+    .testcase-item .testcase-info > div:first-child {
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+    
+    .testcase-item .testcase-info small {
+        color: #64748b;
+        font-size: 13px;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+</style>
+
+<h2>{% if suite %}编辑测试计划{% else %}新建测试计划{% endif %}</h2>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <div class="form-group">
+        <label>测试计划名称 <span style="color: #ef4444;">*</span></label>
+        <input type="text" name="name" value="{{ suite.name|default:'' }}" required placeholder="请输入测试计划名称">
+    </div>
+    
+    <div class="form-group">
+        <label>所属项目 <span style="color: #ef4444;">*</span></label>
+        <select name="project" id="project-select" required {% if suite %}disabled{% endif %}>
+            <option value="">请选择项目</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if suite.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+        </select>
+        {% if suite %}
+        <input type="hidden" name="project" value="{{ suite.project_id }}">
+        {% endif %}
+    </div>
+    
+    <div class="form-group">
+        <label>描述</label>
+        <textarea name="description" rows="3" placeholder="请输入测试计划描述（可选）">{{ suite.description|default:'' }}</textarea>
+    </div>
+    
+    <div class="form-group">
+        <label>已选择测试用例</label>
+        <div class="selected-testcases" id="selected-testcases">
+            {% if suite %}
+                {% for tc in suite.testcases.all %}
+                <div class="selected-testcase-item" data-testcase-id="{{ tc.id }}">
+                    {{ tc.name }}
+                    <span class="remove-btn">×</span>
+                    <input type="hidden" name="testcases" value="{{ tc.id }}">
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #94a3b8; text-align: center; margin-top: 30px;">暂无选择测试用例</p>
+            {% endif %}
+        </div>
+        <button type="button" class="btn" onclick="openTestCaseModal()">选择用例</button>
+    </div>
+    
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+        <button type="submit" class="btn">保存</button>
+        <a href="{% url 'apitest:suite_list' %}" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+
+<!-- 测试用例选择模态框 -->
+<div id="testcase-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeTestCaseModal()">&times;</span>
+        <h3>选择测试用例</h3>
+        
+        <div class="search-container">
+            <input type="text" id="testcase-search" placeholder="搜索测试用例名称...">
+        </div>
+        
+        <div class="testcase-list" id="testcase-list">
+            <!-- 测试用例列表将通过JavaScript动态加载 -->
+            <p style="text-align: center; color: #94a3b8; padding: 40px;">请先选择项目</p>
+        </div>
+        
+        <div style="margin-top: 24px; text-align: right; display: flex; justify-content: flex-end; gap: 12px;">
+            <button class="btn btn-secondary" onclick="closeTestCaseModal()">取消</button>
+            <button class="btn-primary" onclick="confirmTestCaseSelection()">确认选择</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let selectedTestCases = []; // 使用数组来记录选择顺序
+    let availableTestCases = [];
+    
+    // 页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化已选择的测试用例
+        const existingInputs = document.querySelectorAll('input[name="testcases"]');
+        existingInputs.forEach(input => {
+            selectedTestCases.push(parseInt(input.value));
+        });
+        
+        // 项目选择变化时加载对应项目的测试用例
+        document.getElementById('project-select').addEventListener('change', function() {
+            loadTestCases();
+        });
+        
+        // 添加删除按钮的事件委托
+        document.getElementById('selected-testcases').addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-btn')) {
+                const testcaseItem = e.target.closest('.selected-testcase-item');
+                const testcaseId = parseInt(testcaseItem.getAttribute('data-testcase-id'));
+                removeTestCase(testcaseId);
+            }
+        });
+        
+        loadTestCases();
+    });
+    
+    // 加载测试用例
+    function loadTestCases() {
+        const projectId = document.getElementById('project-select').value;
+        const testcaseList = document.getElementById('testcase-list');
+        
+        if (!projectId) {
+            testcaseList.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 40px;">请先选择项目</p>';
+            return;
+        }
+        
+        testcaseList.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 40px;">加载中...</p>';
+        
+        setTimeout(() => {           
+            fetch(`/testcases/tc-list/?project=${projectId}`)
+                .then(response => response.json())
+                .then(data => {
+                    availableTestCases = data;
+                    renderTestCases(data);
+                })
+                .catch(error => {
+                    console.error('加载测试用例失败:', error);
+                    testcaseList.innerHTML = '<p style="text-align: center; color: #ef4444; padding: 40px;">加载失败</p>';
+                });
+        }, 500);
+    }
+    
+    // 渲染测试用例列表
+    function renderTestCases(testcases) {
+        const testcaseList = document.getElementById('testcase-list');
+        
+        if (testcases.length === 0) {
+            testcaseList.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 40px;">该项目暂无测试用例</p>';
+            return;
+        }
+        
+        let html = '';
+        testcases.forEach(tc => {
+            const isSelected = selectedTestCases.includes(tc.id);
+            html += `
+                <div class="testcase-item ${isSelected ? 'selected' : ''}">
+                    <div class="checkbox-container">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleTestCaseSelection(${tc.id}, this)">
+                    </div>
+                    <div class="testcase-info">
+                        <div>${tc.name}</div>
+                        <small>项目: ${tc.project_name}</small>
+                    </div>
+                </div>
+            `;
+        });
+        
+        testcaseList.innerHTML = html;
+    }
+    
+    // 切换测试用例选择状态
+    function toggleTestCaseSelection(testcaseId, checkbox) {
+        const testcaseItem = checkbox.closest('.testcase-item');
+        
+        if (checkbox.checked) {
+            // 如果未选中，则添加到数组末尾
+            if (!selectedTestCases.includes(testcaseId)) {
+                selectedTestCases.push(testcaseId);
+            }
+            testcaseItem.classList.add('selected');
+        } else {
+            // 如果已选中，则从数组中移除
+            const index = selectedTestCases.indexOf(testcaseId);
+            if (index !== -1) {
+                selectedTestCases.splice(index, 1);
+            }
+            testcaseItem.classList.remove('selected');
+        }
+    }
+    
+    // 过滤测试用例
+    function filterTestCases() {
+        const searchTerm = document.getElementById('testcase-search').value.toLowerCase();
+        const filtered = availableTestCases.filter(tc => 
+            tc.name.toLowerCase().includes(searchTerm)
+        );
+        renderTestCases(filtered);
+    }
+    
+    // 搜索框事件绑定（改为使用input事件）
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('testcase-search').addEventListener('input', filterTestCases);
+    });
+    
+    function openTestCaseModal() {
+        document.getElementById('testcase-modal').style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeTestCaseModal() {
+        document.getElementById('testcase-modal').style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+    
+    // 确认选择测试用例
+    function confirmTestCaseSelection() {
+        const selectedTestcasesContainer = document.getElementById('selected-testcases');
+        selectedTestcasesContainer.innerHTML = '';
+        
+        if (selectedTestCases.length === 0) {
+            selectedTestcasesContainer.innerHTML = '<p style="color: #94a3b8; text-align: center; margin-top: 30px;">暂无选择测试用例</p>';
+            closeTestCaseModal();
+            return;
+        }
+        
+        // 清除现有的隐藏输入
+        const existingInputs = document.querySelectorAll('input[name="testcases"]');
+        existingInputs.forEach(input => input.remove());
+        
+        // 按照选择顺序添加测试用例
+        selectedTestCases.forEach(testcaseId => {
+            const tc = availableTestCases.find(t => t.id === testcaseId);
+            if (tc) {
+                const item = document.createElement('div');
+                item.className = 'selected-testcase-item';
+                item.setAttribute('data-testcase-id', tc.id);
+                item.innerHTML = `
+                    ${tc.name}
+                    <span class="remove-btn">×</span>
+                    <input type="hidden" name="testcases" value="${tc.id}">
+                `;
+                selectedTestcasesContainer.appendChild(item);
+            }
+        });
+        
+        closeTestCaseModal();
+    }
+    
+    // 移除测试用例
+    function removeTestCase(testcaseId) {
+        // 从数组中移除
+        const index = selectedTestCases.indexOf(testcaseId);
+        if (index !== -1) {
+            selectedTestCases.splice(index, 1);
+        }
+        
+        // 更新UI
+        const selectedTestcasesContainer = document.getElementById('selected-testcases');
+        const item = document.querySelector(`input[name="testcases"][value="${testcaseId}"]`).parentElement;
+        item.remove();
+        
+        if (selectedTestCases.length === 0) {
+            selectedTestcasesContainer.innerHTML = '<p style="color: #94a3b8; text-align: center; margin-top: 30px;">暂无选择测试用例</p>';
+        }
+    }
+    
+    // 点击模态框外部关闭
+    window.onclick = function(event) {
+        const modal = document.getElementById('testcase-modal');
+        if (event.target === modal) {
+            closeTestCaseModal();
+        }
+    }
+</script>
+{% endblock %}

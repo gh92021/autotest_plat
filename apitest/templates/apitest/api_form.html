@@ -1,0 +1,189 @@
+{# apitest/templates/apitest/api_form.html #}
+{% extends 'apitest/base.html' %}
+
+{% block content %}
+<h2>{% if api %}编辑接口{% else %}新建接口{% endif %}</h2>
+
+<form method="post" style="max-width: 700px;">
+    {% csrf_token %}
+    
+    <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+        <button type="button" class="btn btn-success" onclick="showCurlModal()">
+            <span style="margin-right: 4px;">↗</span>导入curl
+        </button>
+    </div>
+
+    <div class="form-group">
+        <label>接口名称 <span style="color: #ef4444;">*</span></label>
+        <input type="text" name="name" id="nameInput" value="{{ api.name }}" required placeholder="请输入接口名称">
+    </div>
+    
+    {% if not api %}
+    <div class="form-group">
+        <label>所属服务 <span style="color: #ef4444;">*</span></label>
+        <select name="module" id="moduleSelect" onchange="updateEnvironments(this.value)" required>
+            <option value="">请选择</option>
+            {% for m in modules %}
+            <option value="{{ m.id }}" {% if api.module_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+        <label>环境 <span style="color: #ef4444;">*</span></label>
+        <select name="env" id="envSelect" required>
+            <option value="">请选择</option>
+            {% for env in envs %}
+            <option value="{{ env.id }}" {% if api.env_id == env.id %}selected{% endif %}>{{ env.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label>请求方法</label>
+        <select name="method" id="methodSelect">
+            <option value="GET" {% if api.method == 'GET' %}selected{% endif %}>GET</option>
+            <option value="POST" {% if api.method == 'POST' %}selected{% endif %}>POST</option>
+            <option value="PUT" {% if api.method == 'PUT' %}selected{% endif %}>PUT</option>
+            <option value="DELETE" {% if api.method == 'DELETE' %}selected{% endif %}>DELETE</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label>请求URL <span style="color: #ef4444;">*</span></label>
+        <input type="text" name="url" id="urlInput" value="{{ api.url|default:'' }}" placeholder="/api/users" required>
+    </div>
+    
+    <div class="form-group">
+        <label>请求头 (JSON格式)</label>
+        <textarea name="headers" id="headersInput" rows="3" placeholder="例如：{&#10;  &quot;Content-Type&quot;: &quot;application/json&quot;&#10;}">{{ api.headers|default:'{}' }}</textarea>
+    </div>
+    
+    <div class="form-group">
+        <label>查询参数 (JSON格式)</label>
+        <textarea name="params" id="paramsInput" rows="3" placeholder="例如：{&#10;  &quot;page&quot;: 1,&#10;  &quot;size&quot;: 10&#10;}">{{ api.params|default:'{}' }}</textarea>
+    </div>
+    
+    <div class="form-group">
+        <label>请求体 (JSON格式)</label>
+        <textarea name="body" id="bodyInput" rows="5" placeholder="例如：{&#10;  &quot;name&quot;: &quot;test&quot;,&#10;  &quot;age&quot;: 18&#10;}">{{ api.body|default:'{}' }}</textarea>
+    </div>
+  
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+        <button type="submit" class="btn">保存</button>
+        <a href="{% url 'apitest:api_list' %}" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+
+<!-- curl导入弹窗 -->
+<div id="curlModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5);">
+    <div style="background-color: #ffffff; margin: 15% auto; padding: 24px; width: 90%; max-width: 550px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #1e293b;">导入curl</h3>
+            <span style="color: #94a3b8; font-size: 24px; font-weight: bold; cursor: pointer;" onclick="closeCurlModal()">&times;</span>
+        </div>
+        <textarea id="curlInput" rows="6" placeholder="请粘贴curl命令..." style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: monospace; font-size: 13px; resize: vertical;"></textarea>
+        <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="closeCurlModal()">取消</button>
+            <button type="button" class="btn" onclick="parseCurl()">解析</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateEnvironments(moduleId) {
+    var envDataElement = document.getElementById('env-data');
+    if (!envDataElement) {
+        console.error('找不到环境数据元素');
+        return;
+    }
+    var allEnvs = JSON.parse(envDataElement.textContent || envDataElement.innerText);
+    
+    if(moduleId) {
+        var currentEnvId = document.getElementById('envSelect').value;
+        var filteredEnvs = allEnvs.filter(function(env) {
+            return env.module_id == moduleId;
+        });
+        
+        var envSelect = document.getElementById('envSelect');
+        envSelect.innerHTML = '<option value="">请选择环境</option>';
+        
+        filteredEnvs.forEach(function(env) {
+            var option = document.createElement('option');
+            option.value = env.id;
+            option.textContent = env.name;
+            if(env.id == currentEnvId) {
+                option.selected = true;
+            }
+            envSelect.appendChild(option);
+        });
+    }
+}
+
+function showCurlModal() {
+    document.getElementById('curlModal').style.display = 'block';
+}
+
+function closeCurlModal() {
+    document.getElementById('curlModal').style.display = 'none';
+    document.getElementById('curlInput').value = '';
+}
+
+window.onclick = function(event) {
+    var modal = document.getElementById('curlModal');
+    if (event.target == modal) {
+        closeCurlModal();
+    }
+}
+
+function parseCurl() {
+    var curlText = document.getElementById('curlInput').value;
+    if (!curlText.trim()) {
+        alert('请输入curl命令');
+        return;
+    }
+    
+    var csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    
+    fetch("{% url 'apitest:parse_curl' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken
+        },
+        body: 'curl=' + encodeURIComponent(curlText)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success !== false) {
+            if (data.method) {
+                document.getElementById('methodSelect').value = data.method.toUpperCase();
+            }
+            if (data.url) {
+                document.getElementById('urlInput').value = data.url;
+            }
+            if (data.headers) {
+                document.getElementById('headersInput').value = JSON.stringify(data.headers, null, 2);
+            }
+            if (data.params) {
+                document.getElementById('paramsInput').value = JSON.stringify(data.params, null, 2);
+            }
+            if (data.body) {
+                document.getElementById('bodyInput').value = JSON.stringify(data.body, null, 2);
+            }
+            closeCurlModal();
+        } else {
+            alert('解析失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('请求失败:', error);
+        alert('解析失败，请重试');
+    });
+}
+</script>
+<script id="env-data" type="application/json">{{ all_envs_json|safe }}</script>
+{% endblock %}
